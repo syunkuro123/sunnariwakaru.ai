@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 jobs:
   transcribe:
@@ -70,6 +71,20 @@ jobs:
             -ojf \
             -of transcription-output/raw
           test -s transcription-output/raw.txt
+
+      - name: Publish raw transcript as temporary issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            printf '%s\n\n' 'Whisper raw transcript. Temporary processing output.'
+            cat transcription-output/raw.txt
+          } > transcription-output/issue-body.md
+          gh issue create \
+            --title 'TEMP_TRANSCRIPT_20260807院長モーニングセミナー' \
+            --body-file transcription-output/issue-body.md
 
       - name: Commit transcription outputs
         shell: bash
