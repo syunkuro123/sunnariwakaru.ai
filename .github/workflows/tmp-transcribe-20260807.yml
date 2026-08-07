@@ -5,7 +5,7 @@ on:
     branches:
       - tmp-transcription-20260807
     paths:
-      - transcription-input/audio.ogg
+      - transcription-input/READY
 
 permissions:
   contents: write
@@ -21,14 +21,15 @@ jobs:
         with:
           ref: tmp-transcription-20260807
 
-      - name: Install build and audio tools
+      - name: Reconstruct and convert audio
         shell: bash
         run: |
           set -euo pipefail
+          cat transcription-input/audio_b64/*.b64 | tr -d '\n\r ' | base64 --decode > input.ogg
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg cmake build-essential curl
           ffmpeg -y -hide_banner -loglevel error \
-            -i transcription-input/audio.ogg \
+            -i input.ogg \
             -ac 1 -ar 16000 -c:a pcm_s16le input.wav
           ffprobe -v error -show_entries format=duration,size \
             -of default=noprint_wrappers=1 input.wav
