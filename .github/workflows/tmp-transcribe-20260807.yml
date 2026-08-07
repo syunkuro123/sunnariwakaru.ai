@@ -1,0 +1,81 @@
+name: Temporary Japanese Speech Transcription
+
+on:
+  push:
+    branches:
+      - tmp-transcription-20260807
+    paths:
+      - transcription-input/audio.ogg
+
+permissions:
+  contents: write
+
+jobs:
+  transcribe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout temporary branch
+        uses: actions/checkout@v4
+        with:
+          ref: tmp-transcription-20260807
+
+      - name: Install build and audio tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg cmake build-essential curl
+          ffmpeg -y -hide_banner -loglevel error \
+            -i transcription-input/audio.ogg \
+            -ac 1 -ar 16000 -c:a pcm_s16le input.wav
+          ffprobe -v error -show_entries format=duration,size \
+            -of default=noprint_wrappers=1 input.wav
+
+      - name: Build whisper.cpp
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git whisper.cpp
+          cmake -S whisper.cpp -B whisper.cpp/build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DWHISPER_BUILD_TESTS=OFF \
+            -DWHISPER_BUILD_EXAMPLES=ON
+          cmake --build whisper.cpp/build --config Release --target whisper-cli -j 2
+
+      - name: Download multilingual Japanese-capable model
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 5 --retry-delay 3 \
+            -o ggml-small-q5_1.bin \
+            https://github.com/w3xgroup/taskurio-models/releases/download/whisper-models-v1/ggml-small-q5_1.bin
+          echo 'ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb  ggml-small-q5_1.bin' | sha256sum -c -
+
+      - name: Transcribe Japanese audio
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p transcription-output
+          whisper.cpp/build/bin/whisper-cli \
+            -m ggml-small-q5_1.bin \
+            -f input.wav \
+            -l ja \
+            -t 4 \
+            -otxt \
+            -osrt \
+            -ovtt \
+            -ojf \
+            -of transcription-output/raw
+          test -s transcription-output/raw.txt
+
+      - name: Commit transcription outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'temporary-transcription-bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add transcription-output/
+          git commit -m 'chore: add temporary raw speech transcript'
+          git push origin HEAD:tmp-transcription-20260807
