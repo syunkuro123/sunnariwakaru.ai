@@ -22,11 +22,12 @@ jobs:
         with:
           ref: tmp-transcription-20260807
 
-      - name: Reconstruct and convert audio
+      - name: Reconstruct and verify audio
         shell: bash
         run: |
           set -euo pipefail
-          cat transcription-input/audio_b64/*.txt | tr -d '\n\r ' | base64 --decode > input.c2
+          cat transcription-input/audio_b64_8k/*.txt | tr -d '\n\r ' | base64 --decode > input.c2
+          echo 'dd006bb8b7643158595c6c95406d95b051cd7d4931e4e0d9ea2c280c384ad27e  input.c2' | sha256sum -c -
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg cmake build-essential curl
           ffmpeg -y -hide_banner -loglevel error \
